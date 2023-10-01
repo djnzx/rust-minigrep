@@ -1,19 +1,32 @@
+use minigrep::Config;
 use std::{env, process};
 
-use minigrep::Config;
-use minigrep::run;
-
-/// cargo run -- livelong poem.txt
-/// IGNORE_CASE=1 cargo run -- Banish poem.txt
 fn main() {
+    let delim = "-------------";
+    println!("{}", delim);
+    // will panic on invalid UTF8
+    // std::env::args_os will not, but depend on OS, type will be OsString
     let args: Vec<String> = env::args().collect();
-    let config = Config::from_args(&args).unwrap_or_else(|err| {
-        eprintln!("Problem parsing arguments: {err}");
-        process::exit(1);
+    // 0th - executable name
+    // 1st param
+    // 2nd param
+    // ... param
+    // dbg!(args);
+    let config = Config::make(&args).unwrap_or_else(|err| {
+        eprintln!("Arguments parsing error: {}", err);
+        println!("{}", delim);
+        process::exit(1)
     });
-    if let Err(e) = run(config) {
-        eprintln!("Application error: {e}");
-        process::exit(1);
-    }
-}
 
+    println!("Searching for `{}`", config.query);
+    println!("In file `{}`", config.file_path);
+
+    // simplified pattern matching, actually partial handling
+    if let Err(e) = minigrep::run(config) {
+        eprintln!("Application error: {e}");
+        println!("{}", delim);
+        process::exit(1)
+    }
+
+    println!("{}", delim);
+}

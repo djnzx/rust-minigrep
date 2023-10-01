@@ -4,78 +4,114 @@ use std::{env, fs};
 pub struct Config {
     pub query: String,
     pub file_path: String,
-    pub ignore_case: bool,
+    ignore_case: bool,
 }
 
 impl Config {
-    pub fn from_args(args: &[String]) -> Result<Config, &'static str> {
+    pub fn make(args: &[String]) -> Result<Config, &'static str> {
         if args.len() < 3 {
-            return Err("not enough arguments");
+            return Err("Two parameters are expected: substring and file name.");
         }
+
+        // TODO: access it in main
+        let ignore_case = env::var("IGNORE_CASE").is_ok(); // set to whatever (just present)
+
         let query = args[1].clone();
         let file_path = args[2].clone();
-        let ignore_case = env::var("IGNORE_CASE").is_ok();
-
-        Ok(Config {
+        let c = Config {
             query,
             file_path,
             ignore_case,
-        })
+        };
+        Ok(c)
     }
 }
 
+///                                  covariance ???
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    println!("Searching for {}", config.query);
-    println!("In file {}", config.file_path);
+    /// `?` in the end allows to shortcut Result to exit,
+    /// but it should match the signature
+    /// to make it covariant value is wrapped into the Box
+    /// TODO: learn how to handle in the incremental way, line by line
     let contents = fs::read_to_string(config.file_path)?;
-    println!("With text:\n{contents}");
-    println!("=== results ===");
+    // getOrThrow semantics
+    // .expect("Should have been able to read the file");
 
-    let r = if config.ignore_case {
-        search_case_insensitive(config.query.as_str(), contents.as_str())
+    println!("With text:\n{contents}");
+
+    let found = if config.ignore_case {
+        search_case_insensitive(&config.query, &contents)
     } else {
-        search(config.query.as_str(), contents.as_str())
+        search(&config.query, &contents)
     };
-    if r.is_empty() {
-        println!("not found")
-    } else {
-        r.iter().for_each(|x| println!("{}", x));
+
+    let mut is_found = false;
+    for line in found {
+        is_found = true;
+        println!("Found: `{line}`");
     }
+
+    if !is_found {
+        println!("Nothing found.");
+    }
+
     Ok(())
 }
 
+/// In other words, we tell Rust that the data `returned` by the `search` function
+/// will live as long as the data passed into the search function in the `contents` argument
 pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
-    let mut outcome: Vec<&str> = Vec::new();
+    /// the best stub for non-implemented functions
+    // panic!("to be implemented")
+    let mut outcome = Vec::new();
     for line in contents.lines() {
-        println!("searching: {}", line);
         if line.contains(query) {
-            println!("found");
             outcome.push(line);
         }
     }
+
     outcome
 }
 
-pub fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
-    let binding = query.to_lowercase();
-    let query = binding.as_str();
-    // why doesn't work
-    // let query = query.to_lowercase().as_str();
+pub fn search_functional<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    contents
+        .lines()
+        .filter(|line| line.contains(query))
+        .collect()
+}
 
-    let mut outcome: Vec<&str> = Vec::new();
+pub fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    /// the best stub for non-implemented functions
+    // panic!("to be implemented")
+    let query = query.to_lowercase();
+
+    let mut outcome = Vec::new();
     for line in contents.lines() {
-        println!("searching: {}", line);
-        if line.to_lowercase().contains(query) {
-            println!("found");
+        if line.to_lowercase().contains(&query) {
             outcome.push(line);
         }
     }
+
     outcome
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_result() {
+        let query = "duct";
+        // TODO: how to write well formatted multiline literals
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick three.";
+        let contents = dbg!(contents);
+
+        let excerpt = vec!["safe, fast, productive."];
+        assert_eq!(excerpt, search(query, contents));
+    }
 
     #[test]
     fn case_sensitive() {
